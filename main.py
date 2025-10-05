@@ -176,13 +176,13 @@ live = Live(spinner, console=console, refresh_per_second=10)
 live.start()
 
 model = SentenceTransformer("thenlper/gte-base")  # small & fast
-model_name = "microsoft/deberta-v3-large"
+model_name = "facebook/bart-large"
 tokenizer = AutoTokenizer.from_pretrained(model_name)
 modelRoberta = AutoModelForMaskedLM.from_pretrained(model_name)
 
 live.stop()
 
-def rank_choices(sentence, choices):
+def rank_choices_old(sentence, choices):
     """
     Return MLM scores for candidate words in the given sentence.
     Returns a list of floats corresponding to `choices` (unsorted).
@@ -203,6 +203,33 @@ def rank_choices(sentence, choices):
         scores.append(score)
 
     return scores
+
+def score_choice(choice, sentence: str) -> float:
+    prompt = sentence.replace("[MASK]", choice)
+    input_ids = tokenizer(prompt, return_tensors="pt").input_ids
+    with torch.no_grad():
+        outputs = modelRoberta(input_ids, labels=input_ids)
+        loss = outputs.loss.item()
+    return -loss  # higher = better
+
+def rank_choices(sentence, choices: list[str]):
+
+
+
+    scores = [(c, score_choice(c, sentence)) for c in choices]
+
+    # Step 1: find the minimum (most negative) value
+    min_score = min(score for _, score in scores)
+
+    # Step 2: shift all scores so the lowest becomes zero
+    shifted_scores = [(word, score - min_score) for word, score in scores]
+
+    finalList = [c[1] for c in shifted_scores]
+
+    print(finalList)
+
+    return finalList
+
 
 def computeSimilarity(target: str, phrases: list[str]):
     console.print(f"Computing...")
@@ -305,6 +332,8 @@ class App:
 
         @self.socketio.on("similarity")
         def handle_similarity(data: SimilarityData):
+
+            
 
             return computeSimilarity(data["target"], data["words"])
 

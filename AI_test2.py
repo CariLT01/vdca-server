@@ -33,8 +33,8 @@ def rank_choices(sentence, choices):
 print(f"Compute...")
 
 # Example usage
-sentence = "But when I visited there were no [MASK] in the waiting lounge."
-choices = ["complaints", "chairs", "workers", "lines"]
+sentence = "The walls from la Punta to the arsenal were protected by [MASK] with parapets and a ditch."
+choices = ['bulwarks', 'androids', 'batons', 'garnishes']
 
 ranked = rank_choices(sentence, choices)
 for score in ranked:
