@@ -21,7 +21,6 @@ import cv2
 import ctypes
 import random
 from PIL import ImageGrab
-from numba import njit
 
 live.stop()
 
@@ -97,7 +96,6 @@ def bezier_point(t, points):
     
     return tuple(pts[0])
 
-@njit()
 def generate_control_points(start_x, start_y, end_x, end_y):
     # Distance between start and end
     dx = end_x - start_x
@@ -333,7 +331,7 @@ class App:
         @self.socketio.on("similarity")
         def handle_similarity(data: SimilarityData):
 
-            
+
 
             return computeSimilarity(data["target"], data["words"])
 
