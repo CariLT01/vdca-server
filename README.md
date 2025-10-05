@@ -1,4 +1,4 @@
-# Vocab dot com automation system
+# VCDA Server
 
 Check vdca-client for the client-side code.
 
