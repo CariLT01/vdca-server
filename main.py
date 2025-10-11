@@ -1,6 +1,8 @@
+ENABLE_DEEP_THINK = True
 from rich.console import Console
 from rich.spinner import Spinner
 from rich.live import Live
+import re
 
 console = Console()
 
@@ -20,6 +22,7 @@ import numpy as np
 import cv2
 import ctypes
 import random
+import LLMProvider
 from PIL import ImageGrab
 
 live.stop()
@@ -229,36 +232,76 @@ def rank_choices(sentence, choices: list[str]):
     return finalList
 
 
-def computeSimilarity(target: str, phrases: list[str]):
-    console.print(f"Computing...")
+def computeSimilarity(target: str, phrases: list[str], LLMProvider: LLMProvider.LLMProvider | None =None):
+    """
+    Computes similarity scores. If confidence is low, falls back to LLM reasoning.
+    Returns a list of scores aligned with original phrases.
+    """
+    print(f"Target: {target}")
+    print(f"Phrases: {phrases}")
 
-    phrasesStripped = []
-    for i in phrases:
-        phrasesStripped.append(i.strip())
-
-    if "________" in target:
-
-        
-        replacedSentence = target.strip().replace("________", "[MASK]")
-        print(f"Fill in the blank detected. Sentence: {replacedSentence}")
-        print(f"Choices: {phrasesStripped}")
-
-        return rank_choices(replacedSentence, phrases)
-    else:
-
-        print(f"Target is: {target}")
-        print(f"Phrases are: {phrases}")
-
-        # Strip phrases
-
-
+    # Compute embeddings if model is provided
+    similarities = [0.2, 0.3, 0.4, 0.5]
+    if model is not None:
         target_vec = model.encode(target.strip(), convert_to_tensor=True)
-        phrase_vecs = model.encode(phrasesStripped, convert_to_tensor=True)
-        similarities = util.cos_sim(target_vec, phrase_vecs)[0]
+        phrase_vecs = model.encode([p.strip() for p in phrases], convert_to_tensor=True)
+        similarities = torch.nn.functional.cosine_similarity(target_vec, phrase_vecs).tolist()
+        
+        # Check confidence
+        THRESHOLD = 0.7
+        is_confident = max(similarities) > THRESHOLD
+        sorted_sim = sorted(similarities, reverse=True)
+        if len(sorted_sim) > 1 and (sorted_sim[0] - sorted_sim[1]) < 0.07:
+            is_confident = False
 
-        print(f"Similarities are: {similarities}")
+        if is_confident:
+            print(f"High confidence based on embeddings: {similarities}")
+            return similarities
+        print("Low confidence, falling back to LLM reasoning.")
 
-        return similarities.tolist()
+    # Fallback: ask LLM for single best answer
+    if LLMProvider is None:
+        print("No LLMProvider provided. Returning similarity scores.")
+        return similarities
+
+    prompt = f"""Which answer is the most similar to "{target}"? Is it {phrases[0]}, {phrases[1]}, {phrases[2]}, or {phrases[3]}?
+Give your answer in the following format:
+Answer: (just one of the options exactly as written)"""
+
+    response = LLMProvider.getResponse(prompt, stream_output=True)
+
+    # Normalize helper: lowercase, strip whitespace and parentheses
+    def normalize(text: str) -> str:
+        return text.strip().lower().strip("()").strip()
+
+    chosen = None
+
+    # Try regex for 'Answer:'
+    match = re.search(r"Answer:\s*(.*)", response, re.IGNORECASE)
+    if match:
+        chosen = normalize(match.group(1))
+    else:
+        # Fallback: search for any phrase in output
+        for phrase in phrases:
+            if normalize(phrase) in normalize(response):
+                chosen = normalize(phrase)
+                break
+
+    # If nothing found, default to first phrase
+    if chosen is None:
+        chosen = normalize(phrases[0])
+
+    # Build scores
+    ordered_scores = []
+    for phrase in phrases:
+        if normalize(phrase) == chosen:
+            ordered_scores.append(0.95)
+        else:
+            ordered_scores.append(random.uniform(0.4, 0.5))
+
+    print(f"Chosen answer: {chosen}")
+    print(f"Scores aligned with original list: {ordered_scores}")
+    return ordered_scores
 
 class App:
 
@@ -270,7 +313,7 @@ class App:
 
         self.socketio = SocketIO(app=self.app, cors_allowed_origins='*')  # Allow for testing
 
-
+        self.loadModel()
 
 
 
@@ -333,10 +376,18 @@ class App:
 
 
 
-            return computeSimilarity(data["target"], data["words"])
+            return computeSimilarity(data["target"], data["words"], self.llmProvider)
+
+        
 
         # Start kill switch listener in background
         threading.Thread(target=self._kill_switch_listener, daemon=True).start()
+
+    def loadModel(self):
+        if ENABLE_DEEP_THINK:
+            self.llmProvider = LLMProvider.LLMProvider(self.socketio)
+            self.llmProvider.loadProvider()
+
 
     def _kill_switch_listener(self):
         console.print("Press ESC to stop the application.")
