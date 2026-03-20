@@ -16,6 +16,7 @@ import pyautogui
 import threading
 import keyboard
 import sys
+from typing import cast
 import time
 import math
 import numpy as np
@@ -24,6 +25,7 @@ import ctypes
 import random
 import LLMProvider
 import requests
+import textdistance
 from PIL import ImageGrab
 
 live.stop()
@@ -284,7 +286,7 @@ def computeSimilarity(target: str, phrases: list[str], LLMProvider: LLMProvider.
         if len(sorted_sim) > 1 and (sorted_sim[0] - sorted_sim[1]) < 0.07:
             is_confident = False
 
-        if is_confident:
+        if False:
             print(f"High confidence based on embeddings: {similarities}")
             return similarities
         print("Low confidence, falling back to LLM reasoning.")
@@ -311,18 +313,18 @@ def computeSimilarity(target: str, phrases: list[str], LLMProvider: LLMProvider.
 Give your answer without any explanation"""
         else:
             if "OPP" in target:
-                prompt = f"""Which answer is the oppsite of "{target[4:]}"? Is it {phrases_stripped[0]}, {phrases_stripped[1]}, {phrases_stripped[2]}, or {phrases_stripped[3]}?
+                prompt = f"""{target} Is it {phrases_stripped[0]}, {phrases_stripped[1]}, {phrases_stripped[2]}, or {phrases_stripped[3]}?
 Give your answer without any explanation."""
             else:
-                prompt = f"""Which answer is the most similar to "{target}"? Is it {phrases_stripped[0]}, {phrases_stripped[1]}, {phrases_stripped[2]}, or {phrases_stripped[3]}?
+                prompt = f"""{target} Is it {phrases_stripped[0]}, {phrases_stripped[1]}, {phrases_stripped[2]}, or {phrases_stripped[3]}?
 Give your answer without any explanation."""
     else:
         if "OPP" in target:
-            prompt = f"""Which answer is the oppsite of "{target}"? Is it {phrases_stripped[0]}, {phrases_stripped[1]}, {phrases_stripped[2]}, or {phrases_stripped[3]}?
+            prompt = f"""{target} Is it {phrases_stripped[0]}, {phrases_stripped[1]}, {phrases_stripped[2]}, or {phrases_stripped[3]}?
 The definition of "{target[4:]}" is "{definition}".
 Give your answer without any explanation."""
         else:
-            prompt = f"""Which answer is the most similar to "{target}"? Is it {phrases_stripped[0]}, {phrases_stripped[1]}, {phrases_stripped[2]}, or {phrases_stripped[3]}?
+            prompt = f"""{target} Is it {phrases_stripped[0]}, {phrases_stripped[1]}, {phrases_stripped[2]}, or {phrases_stripped[3]}?
 The definition of "{target}" is "{definition}".
 Give your answer without any explanation."""
 
@@ -334,11 +336,24 @@ Give your answer without any explanation."""
 
     chosen = None
 
-    # Fallback: search for any phrase in output
+    # Order by the most probable phrase
+    phrases_chances: list[tuple[str, float]] = []
+    
     for phrase in phrases:
-        if normalize(phrase) in normalize(response):
-            chosen = normalize(phrase)
-            break
+        
+        sim = textdistance.damerau_levenshtein.normalized_similarity(phrase, cast(str, response))
+        print(f"sim check: {phrase}, {response} similarity: {sim}")
+        phrases_chances.append((phrase, sim))
+    
+    phrases_chances.sort(key=lambda x: x[1])
+    
+    chosen = phrases_chances[len(phrases_chances) - 1][0]
+
+    # Fallback: search for any phrase in output
+    # for phrase in phrases:
+    #    if normalize(phrase) in normalize(response):
+    #        chosen = normalize(phrase)
+    #        break
 
     # If nothing found, default to first phrase
     if chosen is None:
