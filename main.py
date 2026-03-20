@@ -23,6 +23,7 @@ import cv2
 import ctypes
 import random
 import LLMProvider
+import requests
 from PIL import ImageGrab
 
 live.stop()
@@ -232,6 +233,35 @@ def rank_choices(sentence, choices: list[str]):
     return finalList
 
 
+def fetchDefinitions(target: str):
+    if len(target.split(" ")) != 1: return None
+    URL = f"https://api.dictionaryapi.dev/api/v2/entries/en/{target}"
+    response = requests.get(URL)
+    if (response.status_code != 200): return None
+    
+    # Fetch all meanings
+    
+    data = response.json()[0]
+    
+    index = -1
+    maxDefinitionsLength = 0
+    
+    # Loop through meanings, found the most used indexes
+    for i, meaning in enumerate(data["meanings"]):
+        definitionsLength = len(meaning["definitions"])
+        if definitionsLength > maxDefinitionsLength:
+            index = i
+    
+    if index == -1: return None
+    
+    
+    meanings = data["meanings"][index]
+    definition = meanings["definitions"][0]["definition"]
+    
+    return definition
+    
+    
+
 def computeSimilarity(target: str, phrases: list[str], LLMProvider: LLMProvider.LLMProvider | None =None):
     """
     Computes similarity scores. If confidence is low, falls back to LLM reasoning.
@@ -264,9 +294,37 @@ def computeSimilarity(target: str, phrases: list[str], LLMProvider: LLMProvider.
         print("No LLMProvider provided. Returning similarity scores.")
         return similarities
 
-    prompt = f"""Which answer is the most similar to "{target}"? Is it {phrases[0]}, {phrases[1]}, {phrases[2]}, or {phrases[3]}?
-Give your answer in the following format:
-Answer: (just one of the options exactly as written)"""
+    definition: str | None = fetchDefinitions(target)
+    prompt = ""
+    
+    phrases_stripped = phrases.copy()
+    for i, p in enumerate(phrases):
+        phrases_stripped[i] = p.strip().lower()
+    
+    if not definition:
+        print("-- No definition found")
+        if "_" in target:
+            print("-- Detected fill-in-the-blank")
+            prompt = f"""Which word fits the best in the following sentence?
+{target}
+{phrases[0]}, {phrases[1]}, {phrases[2]}, or {phrases[3]}?
+Give your answer without any explanation"""
+        else:
+            if "OPP" in target:
+                prompt = f"""Which answer is the oppsite of "{target[4:]}"? Is it {phrases_stripped[0]}, {phrases_stripped[1]}, {phrases_stripped[2]}, or {phrases_stripped[3]}?
+Give your answer without any explanation."""
+            else:
+                prompt = f"""Which answer is the most similar to "{target}"? Is it {phrases_stripped[0]}, {phrases_stripped[1]}, {phrases_stripped[2]}, or {phrases_stripped[3]}?
+Give your answer without any explanation."""
+    else:
+        if "OPP" in target:
+            prompt = f"""Which answer is the oppsite of "{target}"? Is it {phrases_stripped[0]}, {phrases_stripped[1]}, {phrases_stripped[2]}, or {phrases_stripped[3]}?
+The definition of "{target[4:]}" is "{definition}".
+Give your answer without any explanation."""
+        else:
+            prompt = f"""Which answer is the most similar to "{target}"? Is it {phrases_stripped[0]}, {phrases_stripped[1]}, {phrases_stripped[2]}, or {phrases_stripped[3]}?
+The definition of "{target}" is "{definition}".
+Give your answer without any explanation."""
 
     response = LLMProvider.getResponse(prompt, stream_output=True)
 
@@ -276,27 +334,25 @@ Answer: (just one of the options exactly as written)"""
 
     chosen = None
 
-    # Try regex for 'Answer:'
-    match = re.search(r"Answer:\s*(.*)", response, re.IGNORECASE)
-    if match:
-        chosen = normalize(match.group(1))
-    else:
-        # Fallback: search for any phrase in output
-        for phrase in phrases:
-            if normalize(phrase) in normalize(response):
-                chosen = normalize(phrase)
-                break
+    # Fallback: search for any phrase in output
+    for phrase in phrases:
+        if normalize(phrase) in normalize(response):
+            chosen = normalize(phrase)
+            break
 
     # If nothing found, default to first phrase
     if chosen is None:
+        print("-- WARN: Nothing found")
         chosen = normalize(phrases[0])
 
     # Build scores
     ordered_scores = []
     for phrase in phrases:
-        if normalize(phrase) == chosen:
+        if normalize(phrase) == normalize(chosen):
+            print("-- Applied 0.95 bonus")
             ordered_scores.append(0.95)
         else:
+            print("-- Applied 0.4-0.5 uniform random")
             ordered_scores.append(random.uniform(0.4, 0.5))
 
     print(f"Chosen answer: {chosen}")
