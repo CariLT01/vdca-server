@@ -2,6 +2,7 @@ ENABLE_DEEP_THINK = True
 from rich.console import Console
 from rich.spinner import Spinner
 from rich.live import Live
+from QuestionChanceProvider import QuestionProbabilityProvider
 import re
 
 console = Console()
@@ -23,7 +24,7 @@ import numpy as np
 import cv2
 import ctypes
 import random
-import LLMProvider
+import LLMProvider as LLMProvider
 import requests
 import textdistance
 from PIL import ImageGrab
@@ -44,6 +45,13 @@ live.stop()
 class SimilarityData(TypedDict):
     words: list[str]
     target: str
+    word: str
+    
+class QuestionReportData(TypedDict):
+    question_content: str
+    question_type: str
+    answer: str
+    possible_answers: list[str]
 
 
 SetCursorPos = ctypes.windll.user32.SetCursorPos
@@ -264,115 +272,7 @@ def fetchDefinitions(target: str):
     
     
 
-def computeSimilarity(target: str, phrases: list[str], LLMProvider: LLMProvider.LLMProvider | None =None):
-    """
-    Computes similarity scores. If confidence is low, falls back to LLM reasoning.
-    Returns a list of scores aligned with original phrases.
-    """
-    print(f"Target: {target}")
-    print(f"Phrases: {phrases}")
 
-    # Compute embeddings if model is provided
-    similarities = [0.2, 0.3, 0.4, 0.5]
-    if model is not None:
-        target_vec = model.encode(target.strip(), convert_to_tensor=True)
-        phrase_vecs = model.encode([p.strip() for p in phrases], convert_to_tensor=True)
-        similarities = torch.nn.functional.cosine_similarity(target_vec, phrase_vecs).tolist()
-        
-        # Check confidence
-        THRESHOLD = 0.7
-        is_confident = max(similarities) > THRESHOLD
-        sorted_sim = sorted(similarities, reverse=True)
-        if len(sorted_sim) > 1 and (sorted_sim[0] - sorted_sim[1]) < 0.07:
-            is_confident = False
-
-        if False:
-            print(f"High confidence based on embeddings: {similarities}")
-            return similarities
-        print("Low confidence, falling back to LLM reasoning.")
-
-    # Fallback: ask LLM for single best answer
-    if LLMProvider is None:
-        print("No LLMProvider provided. Returning similarity scores.")
-        return similarities
-
-    definition: str | None = fetchDefinitions(target)
-    prompt = ""
-    
-    phrases_stripped = phrases.copy()
-    for i, p in enumerate(phrases):
-        phrases_stripped[i] = p.strip().lower()
-    
-    if not definition:
-        print("-- No definition found")
-        if "_" in target:
-            print("-- Detected fill-in-the-blank")
-            prompt = f"""Which word fits the best in the following sentence?
-{target}
-{phrases[0]}, {phrases[1]}, {phrases[2]}, or {phrases[3]}?
-Give your answer without any explanation"""
-        else:
-            if "OPP" in target:
-                prompt = f"""{target} Is it {phrases_stripped[0]}, {phrases_stripped[1]}, {phrases_stripped[2]}, or {phrases_stripped[3]}?
-Give your answer without any explanation."""
-            else:
-                prompt = f"""{target} Is it {phrases_stripped[0]}, {phrases_stripped[1]}, {phrases_stripped[2]}, or {phrases_stripped[3]}?
-Give your answer without any explanation."""
-    else:
-        if "OPP" in target:
-            prompt = f"""{target} Is it {phrases_stripped[0]}, {phrases_stripped[1]}, {phrases_stripped[2]}, or {phrases_stripped[3]}?
-The definition of "{target[4:]}" is "{definition}".
-Give your answer without any explanation."""
-        else:
-            prompt = f"""{target} Is it {phrases_stripped[0]}, {phrases_stripped[1]}, {phrases_stripped[2]}, or {phrases_stripped[3]}?
-The definition of "{target}" is "{definition}".
-Give your answer without any explanation."""
-
-    response = LLMProvider.getResponse(prompt, stream_output=True)
-
-    # Normalize helper: lowercase, strip whitespace and parentheses
-    def normalize(text: str) -> str:
-        return text.strip().lower().strip("()").strip()
-
-    chosen = None
-
-    # Order by the most probable phrase
-    phrases_chances: list[tuple[str, float]] = []
-    
-    for phrase in phrases:
-        
-        sim = textdistance.damerau_levenshtein.normalized_similarity(phrase, cast(str, response))
-        print(f"sim check: {phrase}, {response} similarity: {sim}")
-        phrases_chances.append((phrase, sim))
-    
-    phrases_chances.sort(key=lambda x: x[1])
-    
-    chosen = phrases_chances[len(phrases_chances) - 1][0]
-
-    # Fallback: search for any phrase in output
-    # for phrase in phrases:
-    #    if normalize(phrase) in normalize(response):
-    #        chosen = normalize(phrase)
-    #        break
-
-    # If nothing found, default to first phrase
-    if chosen is None:
-        print("-- WARN: Nothing found")
-        chosen = normalize(phrases[0])
-
-    # Build scores
-    ordered_scores = []
-    for phrase in phrases:
-        if normalize(phrase) == normalize(chosen):
-            print("-- Applied 0.95 bonus")
-            ordered_scores.append(0.95)
-        else:
-            print("-- Applied 0.4-0.5 uniform random")
-            ordered_scores.append(random.uniform(0.4, 0.5))
-
-    print(f"Chosen answer: {chosen}")
-    print(f"Scores aligned with original list: {ordered_scores}")
-    return ordered_scores
 
 class App:
 
@@ -381,6 +281,8 @@ class App:
         self.app.config['SECRET_KEY'] = 'no secret'
 
         self.killed = False
+        self.question_probability_provider = QuestionProbabilityProvider()
+        
 
         self.socketio = SocketIO(app=self.app, cors_allowed_origins='*')  # Allow for testing
 
@@ -445,9 +347,14 @@ class App:
         @self.socketio.on("similarity")
         def handle_similarity(data: SimilarityData):
 
+            probabilities: dict[str, float] = self.question_probability_provider.get_probability(target_word=data["word"], question_text=data["target"], phrases=data["words"])
 
-
-            return computeSimilarity(data["target"], data["words"], self.llmProvider)
+            return probabilities
+        
+        @self.socketio.on("report_question_data")
+        def handle_question_report(data: QuestionReportData):
+            
+            self.question_probability_provider.record_question_data(data["question_content"], data["question_type"], data["answer"], data["possible_answers"])
 
         
 

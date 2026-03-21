@@ -9,14 +9,21 @@ class LLMProvider:
         
         print(f"-- Created LLM Provider instance")
         self.socket = socketIO_instance
+        self.loaded = False
+        
+        self.loadProvider()
     
     def loadProvider(self):
+        if self.loaded is True:
+            print("warn: attempted to load provider again")
+            return
         print("Created OpenRouter Client")
         
         self.client = OpenAI(
             base_url="https://openrouter.ai/api/v1",
             api_key=API_KEY
         )
+        self.loaded = True
         
         
     
