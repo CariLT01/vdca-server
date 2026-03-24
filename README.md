@@ -36,7 +36,7 @@ The model will guess randomly. It will remember the question and its answer to a
 **Spelling**
 
 The game conveniently exposed the answer in the document tree (DOM) of the page, it is just hidden and invisible to the average user. The client simply reads the answer from the DOM and inputs it into the box.
-This guarantees that the model gets the correct answer.
+This guarantees that the model gets the correct answer every time.
 
 
 
@@ -47,11 +47,13 @@ This guarantees that the model gets the correct answer.
 - Semantic matching artificial intelligence model to predict the correct answer
 - Ability to do spelling questions
 - Fill in the blank artificial intelligence model for fill in the blank questions
-- Fully automatic with no human intervention
+- **Fully automatic with no human intervention**
+- Use of LLM to answer questions via OpenRouter, extremely high accuracy. Only used if the semantic matching model is not confident enough or has high ambiguity between two words
+- Uses an "answer reputation" system to score answers that have appeared in previous questions but not exactly the same question
 
 ## System requirements
 
-- Atleast **8 GB** of RAM
+- At least **8 GB** of RAM
 - Must be running Windows
 
 It is possible that you must be **root** to run this program.
