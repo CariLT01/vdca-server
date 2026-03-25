@@ -91,7 +91,7 @@ class QuestionProbabilityProvider:
         
         for answer, sim in zip(phrases, cosine_similarities):
             answer_probabilities[answer] = sim
-            if question_answer != "" and answer.trim() == question_answer.trim():
+            if question_answer != "" and answer.strip() == question_answer.strip():
                 print(f"known question answer found: answer = {answer}, qhash = {question_hash} boosted by 20")
                 answer_probabilities[answer] = sim + 20
             
