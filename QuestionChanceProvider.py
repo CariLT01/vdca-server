@@ -12,14 +12,14 @@ class LLMProviderResult(TypedDict):
 
 class QuestionProbabilityProvider:
     
-    def __init__(self):
+    def __init__(self, similarity_provider: "SimilarityProvider", database_provider: "DatabaseProvider"):
         
-        self._load()
+        self.similarity_provider = similarity_provider
+        self._load(database_provider)
         
-    def _load(self):
+    def _load(self, database_provider: "DatabaseProvider"):
         
-        self.similarity_provider = SimilarityProvider()
-        self.database_provider = DatabaseProvider()
+        self.database_provider = database_provider
         self.llm_provider = LLMProvider()
         
     def get_llm_similarities(self, target: str, answers: list[str]) -> LLMProviderResult:

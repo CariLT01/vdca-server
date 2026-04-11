@@ -1,8 +1,12 @@
 ENABLE_DEEP_THINK = True
+from pydantic import BaseModel, ValidationError
 from rich.console import Console
 from rich.spinner import Spinner
 from rich.live import Live
+from SimilarityProvier import SimilarityProvider
 from QuestionChanceProvider import QuestionProbabilityProvider
+from DatabaseProvider import DatabaseProvider
+from QuestionTypeEnum import QuestionType
 import re
 
 console = Console()
@@ -11,8 +15,9 @@ spinner = Spinner("dots", text="Loading libraries...")
 live = Live(spinner, console=console, refresh_per_second=10)
 live.start()
 
-from flask import Flask
+from flask import Flask, request, jsonify
 from flask_socketio import SocketIO, emit
+from flask_cors import CORS
 import pyautogui
 import threading
 import keyboard
@@ -271,23 +276,38 @@ def fetchDefinitions(target: str):
     return definition
     
     
+class QuestionReportResponse(BaseModel):
+    question_text: str
+    question_hash: str
+    contextual_sentence: str
+    target_word: str
+    question_type: int
+    answers: list[str]
+    correct_answer_index: int
 
-
+class ListSwitchResponse(BaseModel):
+    list_id: int
 
 class App:
 
     def __init__(self):
         self.app = Flask(__name__)
+        CORS(self.app, origins="*", supports_credentials=True) # fix cors...
         self.app.config['SECRET_KEY'] = 'no secret'
 
         self.killed = False
-        self.question_probability_provider = QuestionProbabilityProvider()
+        self.similarity_provider = SimilarityProvider()
+        self.database_provider = DatabaseProvider(self.similarity_provider, database_path="database.db")
+        self.question_probability_provider = QuestionProbabilityProvider(self.similarity_provider, self.database_provider)
         
 
         self.socketio = SocketIO(app=self.app, cors_allowed_origins='*')  # Allow for testing
 
         self.loadModel()
 
+        self.app.add_url_rule("/api/v1/question/report", view_func=self.report_question_endpoint, methods=["POST"])
+        self.app.add_url_rule("/api/v1/list/switch", view_func=self.switch_list_endpoint, methods=["POST"])
+        self.app.add_url_rule("/api/v1/list/new_variant_probability", view_func=self.new_variant_probability_endpoint, methods=["GET"])
 
 
 
@@ -347,6 +367,9 @@ class App:
         @self.socketio.on("similarity")
         def handle_similarity(data: SimilarityData):
 
+            if self.killed == True:
+                return {}
+
             probabilities: dict[str, float] = self.question_probability_provider.get_probability(target_word=data["word"], question_text=data["target"], phrases=data["words"])
 
             return probabilities
@@ -361,6 +384,69 @@ class App:
         # Start kill switch listener in background
         threading.Thread(target=self._kill_switch_listener, daemon=True).start()
 
+    def switch_list_endpoint(self):
+        
+        try:
+            
+            json_data = request.get_json()
+            data = ListSwitchResponse(**json_data)
+            list_id_int = data.list_id
+                
+            if list_id_int <= 0:
+                return jsonify(ok=False, message="List ID must be more than zero"), 400
+            
+            self.database_provider.switch_to_list(list_id_int)
+            
+            return jsonify(ok=True, message="OK"), 200
+        
+        except ValidationError as e:
+            return jsonify(ok=False, message="Validation error", errors=e.errors()), 400
+        
+        except Exception as e:
+            print(f"Failed to switch to list: {e}")
+            return jsonify(ok=False, message="Internal Server Error"), 500
+    
+    def new_variant_probability_endpoint(self):
+        try:
+            
+            p = self.database_provider.lookup_probability_new_varaint()
+            return jsonify(ok=True, message="OK", data={"probability":p}), 200
+        except Exception as e:
+            print(f"Failed to lookup probability for new variant: {e}")
+            return jsonify(ok=False, message="Internal Server Error"), 500
+    
+    def report_question_endpoint(self):
+        try:
+            
+            if self.killed:
+                return jsonify(ok=False, message="Unavailable"), 503
+            
+            data = request.get_json()
+            
+            try:
+                
+                validated_data = QuestionReportResponse(**data)
+                
+                self.database_provider.add_question_data(
+                    validated_data.question_hash,
+                    validated_data.question_text.replace("\n", "").replace("\t", "").replace("\r", ""),
+                    validated_data.contextual_sentence.replace("\n", "").replace("\t", "").replace("\r", ""),
+                    validated_data.target_word,
+                    QuestionType(validated_data.question_type),
+                    validated_data.answers,
+                    validated_data.correct_answer_index
+                )
+                
+                return jsonify(ok=True, message="OK"), 200
+                
+            except ValidationError as e:
+                
+                return jsonify(ok=False, message="Validation error", errors=e.errors()), 400
+        except Exception as e:
+            print(f"Failed to report question: {e}")
+            return jsonify(ok=False, message="Internal server error"), 500
+        
+    
     def loadModel(self):
         if ENABLE_DEEP_THINK:
             self.llmProvider = LLMProvider.LLMProvider(self.socketio)
@@ -368,11 +454,14 @@ class App:
 
 
     def _kill_switch_listener(self):
-        console.print("Press ESC to stop the application.")
-        keyboard.wait('esc')  # blocks until ESC is pressed
-        console.print("Kill switch activated! Exiting...")
-        self.killed = True
-        sys.exit(0)
+        while True:
+            console.print("Press ESC to stop the application.")
+            keyboard.wait('esc')  # blocks until ESC is pressed
+            console.print("Kill switch activated! Exiting... Press ESC again to restart")
+            self.killed = True
+            keyboard.wait('esc')
+            console.print("Application restarted...")
+            self.killed = False
 
     def run(self):
         # Use socketio.run instead of app.run to handle websockets properly

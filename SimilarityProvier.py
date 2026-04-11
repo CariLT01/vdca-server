@@ -1,6 +1,7 @@
 from sentence_transformers import SentenceTransformer
 from transformers import AutoTokenizer
 import torch
+import numpy
 
 from typing import TypedDict, cast
 
@@ -26,6 +27,11 @@ class SimilarityProvider:
         self.model = SentenceTransformer(self.model_name)
         print(f"Loading tokenizer for '{self.model_name}'")
         self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
+    
+    def compute_embeddings(self, word: str) -> "numpy.ndarray":
+        target_vector: "numpy.ndarray" = self.model.encode(word.strip(), convert_to_numpy=True)
+        
+        return target_vector
     
     def compute_similarity(self, word: str, phrases: str) -> SimilarityComputationResult:
         if self.model is None:

@@ -3,6 +3,7 @@ from flask_socketio import SocketIO
 from openai import OpenAI
 from API_Key import API_KEY, API_KEY_G4F
 from g4f.client import Client
+import multiprocessing
 
 
 class LLMProvider:
@@ -23,15 +24,46 @@ class LLMProvider:
         
         self.client = OpenAI(
             base_url="https://openrouter.ai/api/v1",
-            api_key=API_KEY
-        )
-        self.g4f_client = Client(
-            api_key=API_KEY_G4F,
-            base_url="https://api.airforce/v1"
+            api_key=API_KEY,
         )
         self.loaded = True
+    
+    @staticmethod
+    def worker(queue, messages):
+        try:
+            
+            g4f_client = Client(
+                api_key=API_KEY_G4F,
+                base_url="https://api.airforce/v1"
+            )
+            
+            response = g4f_client.chat.completions.create(
+                model="grok-4.1-fast",
+                messages=messages
+            )
+            queue.put(response.choices[0].message.content)
+        except Exception as e:
+            queue.put(e)
         
-        
+    def run_with_timeout(self, messages, timeout=15):
+        queue = multiprocessing.Queue()
+        p = multiprocessing.Process(target=self.worker, args=(queue, messages))
+        p.start()
+        p.join(timeout)
+
+        if p.is_alive():
+            print("Force killing g4f process")
+            p.terminate()
+            p.join()
+            return None
+
+        result = queue.get()
+
+        if isinstance(result, Exception):
+            raise result
+
+        return result    
+    
     
     def getResponse(self, prompt: str, stream_output=False):
         print(f"Prompt: {prompt}")
@@ -52,14 +84,12 @@ class LLMProvider:
             return content_response
         except Exception as e:
             print(f"OpenRouter client failed with reason: {e}")
-            print(f"Trying gpt4free")
+            print("Trying gpt4free")
+        
             
-            response = self.g4f_client.chat.completions.create(
-                model="grok-4.1-fast",
-                messages=messages
-            )
-            
-            content_response = response.choices[0].message.content
+            content_response = self.run_with_timeout(messages, timeout=10)
+            if content_response is None:
+                raise RuntimeError("g4f response timed out") from e
             print(f"g4f got response: {content_response}")
 
             return content_response
