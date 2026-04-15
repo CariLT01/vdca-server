@@ -324,7 +324,21 @@ correct_answer_index, answer_embedding, seen) VALUES (?,?,  ?, ?, ?, ?, ?, ?, ?,
         conn.close()
 
     def compute_question_hash(self, question_text: str, question_answers: list[str]):
-        question_hashtext = f"{question_text}+{"//".join(question_answers)}"
+        """
+        Computes the SHA-256 hexdigest hash of a question.
+        
+        Args:
+            question_text (str): The question content. **Note**: this must include the contextual sentence!
+            question_answers (list[str]): The answers to this question
+        
+        Returns:
+            str: the hexdigest of the SHA-256 hash
+        """
+        
+        question_answers_sorted = sorted(question_answers)
+        
+        
+        question_hashtext = f"{question_text}+{'//'.join(question_answers_sorted)}"
         print(f"hashtext: {question_hashtext}")
         question_hash = hashlib.sha256(question_hashtext.encode()).hexdigest()
         return question_hash
