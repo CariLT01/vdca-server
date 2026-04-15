@@ -274,9 +274,20 @@ correct_answer_index, answer_embedding, seen) VALUES (?,?,  ?, ?, ?, ?, ?, ?, ?,
         # define queries
         query_strict = "SELECT id, answer_reputation FROM answers WHERE answer_text = ? AND list_id = ? AND target_word = ?"
         query_loose = "SELECT id, answer_reputation FROM answers WHERE answer_text = ? AND list_id = ?"
+        query_impossible = "SELECT id, answer_reputation FROM answers WHERE 0" # ensure impossibility
         query_check_target_word = (
             "SELECT target_word FROM answers WHERE answer_text = ? AND list_id = ?"
         )
+        query_check_target_word_strict = (
+            "SELECT target_word FROM answers WHERE answer_text = ? AND list_id = ? AND target_word = ?"
+        )
+        
+        # check if anything matches strict query
+        cursor.execute(query_check_target_word_strict, (answer_text, self.current_list, target_word))
+        row = cursor.fetchone()
+        if row:
+            # something already matches, just return the strict query
+            return True, query_strict, (answer_text, self.current_list, target_word)
 
         # check if anything matches loose query
         cursor.execute(query_check_target_word, (answer_text, self.current_list))
@@ -300,8 +311,10 @@ correct_answer_index, answer_embedding, seen) VALUES (?,?,  ?, ?, ?, ?, ?, ?, ?,
 
             if existing_target != target_word:
                 print(f"ANSWER REPUTATION LOOKUP: does not match {existing_target} {target_word} {answer_text}")
-                # some other word, no match, just return loose
-                return False, query_loose, (answer_text, self.current_list)
+                # some other word is already there, so there is a collision
+                # in this case, return an impossible query that matches nothing
+                # forcing the creation to create a new entry with a different target word
+                return False, query_impossible, ("SHOULD_NEVER_MATCH", self.current_list)
         print(f"ANSWER REPUTATION LOOKUP: no query found for: {query_check_target_word} with answer: {answer_text} in {self.current_list}")
         # otherwise return loose query
         return False, query_loose, (answer_text, self.current_list)
