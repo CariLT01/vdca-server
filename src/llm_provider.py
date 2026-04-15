@@ -13,10 +13,8 @@ class LLMProvider:
         print(f"-- Created LLM Provider instance")
         self.socket = socketIO_instance
         self.loaded = False
-        
-        self.loadProvider()
     
-    def loadProvider(self):
+    def _load_provider(self):
         if self.loaded is True:
             print("warn: attempted to load provider again")
             return
@@ -65,7 +63,12 @@ class LLMProvider:
         return result    
     
     
-    def getResponse(self, prompt: str, stream_output=False):
+    def get_response(self, prompt: str, stream_output=False):
+        
+        if not self.loaded:
+            print("lazy-loading LLM providers")
+            self._load_provider()
+        
         print(f"Prompt: {prompt}")
         messages = [{"role": "user", "content": prompt}]
         
@@ -73,7 +76,7 @@ class LLMProvider:
             # Full-response call (no streaming)
             response = self.client.chat.completions.create(
                 model="nvidia/nemotron-3-super-120b-a12b:free",
-                messages=messages,
+                messages=messages, # type: ignore
                 extra_body={"reasoning": {"enabled": True}}
             )
             
