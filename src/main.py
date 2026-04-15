@@ -7,7 +7,6 @@ from similarity_provider import SimilarityProvider
 from answer_probability_provider import AnswerProbabilityProvider
 from database_provider import DatabaseProvider
 from question_type import QuestionType
-import re
 
 console = Console()
 
@@ -16,13 +15,11 @@ live = Live(spinner, console=console, refresh_per_second=10)
 live.start()
 
 from flask import Flask, request, jsonify
-from flask_socketio import SocketIO, emit
+from flask_socketio import SocketIO
 from flask_cors import CORS
 import pyautogui
 import threading
 import keyboard
-import sys
-from typing import cast
 import time
 import math
 import numpy as np
@@ -30,22 +27,10 @@ import cv2
 import ctypes
 import random
 import llm_provider as llm_provider
-import requests
-import textdistance
 from PIL import ImageGrab
 
 live.stop()
-
-spinner = Spinner("dots", text="Loading transformers...")
-live = Live(spinner, console=console, refresh_per_second=10)
-live.start()
-
-import torch
-from transformers import AutoModelForMaskedLM, AutoTokenizer
-from sentence_transformers import SentenceTransformer, util
 from typing import TypedDict
-
-live.stop()
 
 class SimilarityData(TypedDict):
     words: list[str]
@@ -189,92 +174,7 @@ def moveMouse(end_x: int, end_y: int):
     return points
 
 
-spinner = Spinner("dots", text="Loading AI similarity model...")
-live = Live(spinner, console=console, refresh_per_second=10)
-live.start()
 
-model = SentenceTransformer("thenlper/gte-base")  # small & fast
-model_name = "facebook/bart-large"
-tokenizer = AutoTokenizer.from_pretrained(model_name)
-modelRoberta = AutoModelForMaskedLM.from_pretrained(model_name)
-
-live.stop()
-
-def rank_choices_old(sentence, choices):
-    """
-    Return MLM scores for candidate words in the given sentence.
-    Returns a list of floats corresponding to `choices` (unsorted).
-    """
-    mask_token = tokenizer.mask_token
-    sentence = sentence.replace("[MASK]", mask_token)
-    input_ids = tokenizer(sentence, return_tensors="pt")["input_ids"]
-    mask_idx = (input_ids == tokenizer.mask_token_id).nonzero(as_tuple=True)[1]
-
-    with torch.no_grad():
-        outputs = modelRoberta(input_ids)
-        logits = outputs.logits[0, mask_idx, :]  # shape: [mask_position, vocab_size]
-
-    scores = []
-    for word in choices:
-        token_ids = tokenizer(word, add_special_tokens=False)["input_ids"]
-        score = logits[:, token_ids].mean().item()  # average if multiple tokens
-        scores.append(score)
-
-    return scores
-
-def score_choice(choice, sentence: str) -> float:
-    prompt = sentence.replace("[MASK]", choice)
-    input_ids = tokenizer(prompt, return_tensors="pt").input_ids
-    with torch.no_grad():
-        outputs = modelRoberta(input_ids, labels=input_ids)
-        loss = outputs.loss.item()
-    return -loss  # higher = better
-
-def rank_choices(sentence, choices: list[str]):
-
-
-
-    scores = [(c, score_choice(c, sentence)) for c in choices]
-
-    # Step 1: find the minimum (most negative) value
-    min_score = min(score for _, score in scores)
-
-    # Step 2: shift all scores so the lowest becomes zero
-    shifted_scores = [(word, score - min_score) for word, score in scores]
-
-    finalList = [c[1] for c in shifted_scores]
-
-    print(finalList)
-
-    return finalList
-
-
-def fetchDefinitions(target: str):
-    if len(target.split(" ")) != 1: return None
-    URL = f"https://api.dictionaryapi.dev/api/v2/entries/en/{target}"
-    response = requests.get(URL)
-    if (response.status_code != 200): return None
-    
-    # Fetch all meanings
-    
-    data = response.json()[0]
-    
-    index = -1
-    maxDefinitionsLength = 0
-    
-    # Loop through meanings, found the most used indexes
-    for i, meaning in enumerate(data["meanings"]):
-        definitionsLength = len(meaning["definitions"])
-        if definitionsLength > maxDefinitionsLength:
-            index = i
-    
-    if index == -1: return None
-    
-    
-    meanings = data["meanings"][index]
-    definition = meanings["definitions"][0]["definition"]
-    
-    return definition
     
     
 class QuestionReportResponse(BaseModel):

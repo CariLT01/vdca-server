@@ -20,6 +20,8 @@ class DatabaseProvider:
 
         self._initialize_database()
         self._apply_migrations()
+        
+        self.applied_verifications: set[int] = set()
 
     def _get_conn(self) -> tuple[sqlite3.Connection, sqlite3.Cursor]:
         conn = sqlite3.connect(self.database_path)
@@ -80,6 +82,73 @@ CREATE TABLE IF NOT EXISTS questionData (
         conn.commit()
         conn.close()
 
+    def _faulty_data_correction(self):
+        
+        assert self.current_list != -1
+        
+        conn, cursor = self._get_conn()
+        
+        # scan for correct answers
+        
+        cursor.execute("SELECT answer_string_1, answer_string_2, answer_string_3, answer_string_4, correct_answer_index, question_hash FROM questionData WHERE list_id = ? AND target_word=''", (self.current_list,))
+        
+        correct_answers: set[str] = set([])
+        
+        rows = cursor.fetchall()
+        for row in rows:
+            answer0, answer1, answer2, answer3, answer_index, qhash = row
+            answers: list[str] = [answer0, answer1, answer2, answer3]
+            
+            answer: str = answers[answer_index]
+            correct_answers.add(answer)
+
+        
+        # scan for answer reputations
+        
+        cursor.execute("SELECT id, answer_text, question_id FROM answers WHERE list_id = ?", (self.current_list,))
+        rows = cursor.fetchall()
+        
+        
+        # answer_text, row_id, question_id
+        potential_faulty_answers: list[tuple[str, int, int]] = []
+        
+        for row in rows:
+            row_id, answer_text, question_id = row
+            if answer_text not in correct_answers:
+                print(f"-- [internal] potential faulty answer: {answer_text} (row id: {row_id})")
+                potential_faulty_answers.append((answer_text, row_id, question_id))
+        
+        # scan for non-existent question IDs
+        
+        cursor.execute("SELECT id, question_text FROM questions WHERE list_id = ?", (self.current_list,))
+        
+        existent_question_ids: set[int] = set()
+        
+        for row in cursor.fetchall():
+            question_id, _ = row
+            existent_question_ids.add(question_id)
+        
+        
+        
+        
+        for row in potential_faulty_answers:
+            answer_text, row_id, question_id = row
+            if question_id not in existent_question_ids:
+                print(f"-- Faulty answer: {answer_text} in {row_id} linked with non-existent QID: {question_id}")
+        
+        conn.close()
+    
+    def _apply_fixes(self):
+        assert self.current_list != -1
+        
+        if self.current_list in self.applied_verifications:
+            return
+        print("Apply: faulty reputation correction")
+        self._faulty_data_correction()
+        print("Fixes applied")
+        
+        self.applied_verifications.add(self.current_list)
+
     def _apply_migrations(self):
         """
         Apply migrations to the database. Should run on initialize.
@@ -131,6 +200,8 @@ VALUES (?, ?)
         if not self.list_exists(list_id):
             self.create_list(list_id)
         self.current_list = list_id
+        
+        self._apply_fixes()
 
     @staticmethod
     def clean_string(s: str) -> str:
