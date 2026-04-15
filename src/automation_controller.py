@@ -225,3 +225,20 @@ class AutomationController:
 
         # console.print(points)
         return points
+
+    @staticmethod
+    def type_text(text: str) -> None:
+        """
+        Type text like human.
+        
+        Args:
+            text (str): text to type
+        """
+        
+        pyautogui.typewrite(text, interval=0.1)
+    
+    @staticmethod
+    def mouse_click() -> None:
+        """Click the mouse"""
+        pyautogui.click()
+        

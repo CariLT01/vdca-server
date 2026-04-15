@@ -12,7 +12,6 @@ from typing import TypedDict
 from flask import Flask, request, jsonify
 from flask_socketio import SocketIO
 from flask_cors import CORS
-import pyautogui
 import keyboard
 from pydantic import BaseModel, ValidationError
 
@@ -114,7 +113,7 @@ class App:
             # console.print(f"Clicking at {x} {y}")
             # pyautogui.moveTo(x=x, y=y, duration=0.5)
             AutomationController.move_mouse(x, y)
-            pyautogui.click()
+            AutomationController.mouse_click()
             return "DONE"
 
         @self.socketio.on("locateChoices")
@@ -166,7 +165,7 @@ class App:
         @self.socketio.on("type")
         def handle_type(data: str):
 
-            pyautogui.typewrite(data, interval=0.1)
+            AutomationController.type_text(data)
 
         @self.socketio.on("similarity")
         def handle_similarity(data: SimilarityData):
