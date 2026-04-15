@@ -1,0 +1,28 @@
+syntax = "proto3";
+
+message WordEmbedding {
+    int32 word = 2;
+    bytes embedding = 1;
+}
+
+message Metadata {
+    int32 version = 1;
+    int32 listId = 2;
+    string producer = 3;
+}
+
+message Questions {
+    int32 questionText = 1;
+    int32 contextualSentence = 2;
+    repeated int32 answers = 3;
+    int32 correctAnswerIndex = 4;
+    int32 targetWord = 5;
+}
+
+
+message Data {
+    Metadata metadata = 1;
+    repeated string deduplicatedStrings = 2;
+    repeated WordEmbedding embeddings = 3;
+    repeated Questions questions = 4;
+}

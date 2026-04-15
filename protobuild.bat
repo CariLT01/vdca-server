@@ -1,0 +1,1 @@
+protoc -I . --python_betterproto2_out=lib VCListPack.proto

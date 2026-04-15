@@ -1,7 +1,7 @@
 MODEL_NAME: str = "Qwen/Qwen3-0.6B"
 from flask_socketio import SocketIO
 from openai import OpenAI
-from API_Key import API_KEY, API_KEY_G4F
+from api_key import API_KEY, API_KEY_G4F
 from g4f.client import Client
 import multiprocessing
 

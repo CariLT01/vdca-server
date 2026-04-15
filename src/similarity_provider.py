@@ -1,5 +1,11 @@
+# loading text
+
+print("Loading transformers...")
+
 from sentence_transformers import SentenceTransformer
 from transformers import AutoTokenizer
+
+print("Loading torch...")
 import torch
 import numpy
 
@@ -33,7 +39,7 @@ class SimilarityProvider:
         
         return target_vector
     
-    def compute_similarity(self, word: str, phrases: str) -> SimilarityComputationResult:
+    def compute_similarity(self, word: str, phrases: list[str]) -> SimilarityComputationResult:
         if self.model is None:
             raise RuntimeError("Model not loaded")
         

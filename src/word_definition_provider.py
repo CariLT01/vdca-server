@@ -7,11 +7,13 @@ class WordDefinitionProvider:
         self.api_url = api_url
         
         
-    def fetch_definition(self, target: str) -> str:
-        if len(target.split(" ")) != 1: return None
+    def fetch_definition(self, target: str) -> str | None:
+        if len(target.split(" ")) != 1: 
+            return None
         URL = self.api_url
         response = requests.get(URL)
-        if (response.status_code != 200): return None
+        if (response.status_code != 200): 
+            return None
         
         # Fetch all meanings
         

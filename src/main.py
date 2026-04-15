@@ -3,10 +3,10 @@ from pydantic import BaseModel, ValidationError
 from rich.console import Console
 from rich.spinner import Spinner
 from rich.live import Live
-from SimilarityProvier import SimilarityProvider
-from QuestionChanceProvider import QuestionProbabilityProvider
-from DatabaseProvider import DatabaseProvider
-from QuestionTypeEnum import QuestionType
+from similarity_provider import SimilarityProvider
+from answer_probability_provider import AnswerProbabilityProvider
+from database_provider import DatabaseProvider
+from question_type import QuestionType
 import re
 
 console = Console()
@@ -29,7 +29,7 @@ import numpy as np
 import cv2
 import ctypes
 import random
-import LLMProvider as LLMProvider
+import llm_provider as llm_provider
 import requests
 import textdistance
 from PIL import ImageGrab
@@ -57,6 +57,7 @@ class QuestionReportData(TypedDict):
     question_type: str
     answer: str
     possible_answers: list[str]
+    target_word: str
 
 
 SetCursorPos = ctypes.windll.user32.SetCursorPos
@@ -298,7 +299,7 @@ class App:
         self.killed = False
         self.similarity_provider = SimilarityProvider()
         self.database_provider = DatabaseProvider(self.similarity_provider, database_path="database.db")
-        self.question_probability_provider = QuestionProbabilityProvider(self.similarity_provider, self.database_provider)
+        self.question_probability_provider = AnswerProbabilityProvider(self.similarity_provider, self.database_provider)
         
 
         self.socketio = SocketIO(app=self.app, cors_allowed_origins='*')  # Allow for testing
@@ -377,7 +378,7 @@ class App:
         @self.socketio.on("report_question_data")
         def handle_question_report(data: QuestionReportData):
             
-            self.question_probability_provider.record_question_data(data["question_content"], data["question_type"], data["answer"], data["possible_answers"])
+            self.question_probability_provider.record_question_data(data["question_content"], data["question_type"], data["answer"], data["possible_answers"], data["target_word"])
 
         
 
@@ -449,7 +450,7 @@ class App:
     
     def loadModel(self):
         if ENABLE_DEEP_THINK:
-            self.llmProvider = LLMProvider.LLMProvider(self.socketio)
+            self.llmProvider = llm_provider.LLMProvider(self.socketio)
             self.llmProvider.loadProvider()
 
 
