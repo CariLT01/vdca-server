@@ -385,7 +385,7 @@ correct_answer_index, answer_embedding, seen) VALUES (?,?,  ?, ?, ?, ?, ?, ?, ?,
                 # some other word is already there, so there is a collision
                 # in this case, return an impossible query that matches nothing
                 # forcing the creation to create a new entry with a different target word
-                return False, query_impossible, ("SHOULD_NEVER_MATCH", self.current_list)
+                return False, query_impossible, ()
         print(f"ANSWER REPUTATION LOOKUP: no query found for: {query_check_target_word} with answer: {answer_text} in {self.current_list}")
         # otherwise return loose query
         return False, query_loose, (answer_text, self.current_list)
