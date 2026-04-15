@@ -82,7 +82,7 @@ class AnswerProbabilityProvider:
         for answer in phrases:
             if question_answer != "" and answer.strip() == question_answer.strip():
                 print(f"known question answer found: answer = {answer}, qhash = {question_hash} boosted by 20")
-                reputation_probabilities[answer] = 20
+                reputation_probabilities[answer] = 9999
             else:
                 reputation_probabilities[answer] = 0
         
