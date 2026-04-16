@@ -1,11 +1,12 @@
 # loading text
 
 print("Loading Similarity Provider...")
+from perf_utils import Utils
 
 
-
-
+Utils.begin_time("import numpy")
 import numpy
+Utils.end_time("import numpy")
 
 from typing import TypedDict, cast
 
@@ -39,6 +40,10 @@ class SimilarityProvider:
         self.model_loaded = True
     
     def compute_embeddings(self, word: str) -> "numpy.ndarray":
+        
+        if not self.model_loaded:
+            self._load_model()
+        
         target_vector: "numpy.ndarray" = self.model.encode(word.strip(), convert_to_numpy=True)
         
         return target_vector

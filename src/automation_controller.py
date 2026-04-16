@@ -5,6 +5,8 @@ This module provides the AutomationController class, used for simulating natural
 movements for automation and avoiding bot detection.
 """
 
+# import performance tests
+from perf_utils import Utils
 
 import math
 import time
@@ -12,7 +14,9 @@ import random
 from typing import TypedDict
 
 import ctypes
+Utils.begin_time("import CV2")
 import cv2
+Utils.end_time("import CV2")
 import numpy as np
 import pyautogui
 import keyboard

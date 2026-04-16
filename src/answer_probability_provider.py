@@ -87,9 +87,7 @@ class AnswerProbabilityProvider:
         question_hash = self.database_provider.compute_question_hash(
             question_text.strip(), [p.strip() for p in phrases]
         )
-        question_answer = self.database_provider.lookup_answer(
-            self.database_provider.lookup_question_id(question_hash)
-        )
+        question_answer = self.database_provider.lookup_answer(question_hash)
 
         print(f"lookup answers reputations: looked up answer: {question_answer}")
 
@@ -143,7 +141,7 @@ class AnswerProbabilityProvider:
 
         # -- Compute reputation first --
         any_reputation, answer_reputations = self.get_answers_reputations(
-            question_text, phrases, target_word
+            question_text, phrases, target_word or "(none)"
         )
 
         if any_reputation:

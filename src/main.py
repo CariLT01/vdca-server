@@ -4,17 +4,27 @@ Main file and entry point.
 Handles I/O, networking, and glues everything together.
 """
 
+# performance import
+from perf_utils import Utils
+
+Utils.begin_time("load_libs")
+
 # Built-in imports
 import threading
 from typing import TypedDict
 
 # Third-party imports
+Utils.begin_time("load_libs")
 from flask import Flask, request, jsonify
 from flask_socketio import SocketIO
 from flask_cors import CORS
 import keyboard
 from pydantic import BaseModel, ValidationError
+Utils.end_time("load_libs")
 
+
+
+Utils.begin_time("load_services")
 # services & providers
 from similarity_provider import SimilarityProvider
 from answer_probability_provider import AnswerProbabilityProvider
@@ -22,6 +32,7 @@ from database_provider import DatabaseProvider
 from question_type import QuestionType
 from llm_provider import LLMProvider
 from automation_controller import AutomationController
+Utils.end_time("load_services")
 
 
 class SimilarityData(TypedDict):
@@ -285,5 +296,7 @@ class App:
 
 
 if __name__ == "__main__":
+    Utils.begin_time("init")
     app = App()
+    Utils.end_time("init")
     app.run()
