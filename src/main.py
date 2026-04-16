@@ -7,32 +7,55 @@ Handles I/O, networking, and glues everything together.
 # performance import
 from perf_utils import Utils
 
-Utils.begin_time("load_libs")
+Utils.tbegin("load_libs")
 
 # Built-in imports
 import threading
 from typing import TypedDict
 
 # Third-party imports
-Utils.begin_time("load_libs")
+Utils.tbegin("load_libs")
+Utils.tbegin("load_flask")
 from flask import Flask, request, jsonify
+Utils.tend("load_flask")
+Utils.tbegin("load_socketio")
 from flask_socketio import SocketIO
+Utils.tend("load_socketio")
+Utils.tbegin("load_cors")
 from flask_cors import CORS
+Utils.tend("load_cors")
+Utils.tbegin("load_keyboard")
 import keyboard
+Utils.tend("load_keyboard")
+Utils.tbegin("load_pydantic")
 from pydantic import BaseModel, ValidationError
-Utils.end_time("load_libs")
+Utils.tend("load_pydantic")
+Utils.tend("load_libs")
 
 
 
-Utils.begin_time("load_services")
+Utils.tbegin("load_services")
 # services & providers
+
+Utils.tbegin("load_sim_provider")
 from similarity_provider import SimilarityProvider
+Utils.tend("load_sim_provider")
+Utils.tbegin("load_aps")
 from answer_probability_provider import AnswerProbabilityProvider
+Utils.tend("load_aps")
+Utils.tbegin("load_db_provider")
 from database_provider import DatabaseProvider
+Utils.tend("load_db_provider")
+Utils.tbegin("load_qtype")
 from question_type import QuestionType
+Utils.tend("load_qtype")
+Utils.tbegin("load_llm_provider")
 from llm_provider import LLMProvider
+Utils.tend("load_llm_provider")
+Utils.tbegin("load_automation_ctrl")
 from automation_controller import AutomationController
-Utils.end_time("load_services")
+Utils.tend("load_automation_ctrl")
+Utils.tend("load_services")
 
 
 class SimilarityData(TypedDict):
@@ -78,9 +101,17 @@ class ListSwitchResponse(BaseModel):
 class App:
 
     def __init__(self):
+        
+        Utils.tbegin("create_flask_app")
+        
         self.app = Flask(__name__)
+        
         CORS(self.app, origins="*", supports_credentials=True)  # fix cors...
         self.app.config["SECRET_KEY"] = "no secret"
+
+        Utils.tend("create_flask_app")
+
+        Utils.tbegin("init_services")
 
         self.killed = False
         self.similarity_provider = SimilarityProvider()
@@ -91,12 +122,23 @@ class App:
             self.similarity_provider, self.database_provider
         )
 
+        Utils.tend("init_services")
+
+        Utils.tbegin("init_socketio")
+
         self.socketio = SocketIO(
             app=self.app, cors_allowed_origins="*"
         )  # Allow for testing
+        
+        Utils.tend("init_socketio")
 
+
+        Utils.tbegin("load_warm")
         self.loadModel()
+        Utils.tend("load_warm")
 
+
+        Utils.tbegin("init_rules")
         self.app.add_url_rule(
             "/api/v1/question/report",
             view_func=self.report_question_endpoint,
@@ -205,6 +247,8 @@ class App:
                 data["target_word"],
             )
 
+        Utils.tend("init_rules")
+
         # Start kill switch listener in background
         threading.Thread(target=self._kill_switch_listener, daemon=True).start()
 
@@ -296,7 +340,7 @@ class App:
 
 
 if __name__ == "__main__":
-    Utils.begin_time("init")
+    Utils.tbegin("init")
     app = App()
-    Utils.end_time("init")
+    Utils.tend("init")
     app.run()

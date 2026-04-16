@@ -1,9 +1,26 @@
+from perf_utils import Utils
+
+Utils.tbegin("aps_load_sim_provider")
 from similarity_provider import SimilarityProvider
+Utils.tend("aps_load_sim_provider")
+Utils.tbegin("aps_load_db_provider")
 from database_provider import DatabaseProvider
+Utils.tend("aps_load_db_provider")
+Utils.tbegin("aps_load_llm_provider")
 from llm_provider import LLMProvider
+Utils.tend("aps_load_llm_provider")
+
+Utils.tbegin("aps_load_builtin")
 from typing import TypedDict, cast
+Utils.tend("aps_load_builtin")
+
+Utils.tbegin("aps_load_txt_dist")
 import textdistance
+Utils.tend("aps_load_txt_dist")
+
+Utils.tbegin("aps_load_np")
 import numpy
+Utils.tend("aps_load_np")
 from math_utils import Math
 
 

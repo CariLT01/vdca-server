@@ -23,6 +23,8 @@ class DatabaseProvider:
         similarity_provider: "SimilarityProvider",
         database_path: str = "memory.db",
     ):
+        
+        
         self.database_path = database_path
 
         self.current_list: int = -1

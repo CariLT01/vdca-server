@@ -12,12 +12,9 @@ import math
 import time
 import random
 from typing import TypedDict
+import types
 
 import ctypes
-Utils.begin_time("import CV2")
-import cv2
-Utils.end_time("import CV2")
-import numpy as np
 import pyautogui
 import keyboard
 
@@ -45,7 +42,15 @@ class AutomationController:
     """
 
     SetCursorPos = ctypes.windll.user32.SetCursorPos
-
+    
+    # lazy-load packages
+    
+    open_cv_loaded: bool = False
+    numpy_loaded: bool = False
+    
+    np: types.ModuleType
+    cv2: types.ModuleType
+    
     @staticmethod
     def locate_icons(
         template_path: str, threshold=0.8, min_distance=10, icon_type="correct"
@@ -65,6 +70,22 @@ class AutomationController:
         Returns:
             list[IconLocationEntry]: the locations of all locations that matched the template
         """
+
+        if not AutomationController.open_cv_loaded:
+            Utils.tbegin("import_cv2")
+            import cv2
+            Utils.tend("import_cv2")
+            AutomationController.open_cv_loaded = True
+            AutomationController.cv2 = cv2
+        if not AutomationController.numpy_loaded:
+            Utils.tbegin("import_np")
+            import numpy as np
+            Utils.tend("import_np")
+            AutomationController.numpy_loaded = True
+            AutomationController.np = np
+
+        np = AutomationController.np
+        cv2 = AutomationController.cv2
 
         print(f"Locating icon: {icon_type}")
         # Take a screenshot

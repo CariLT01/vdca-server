@@ -4,9 +4,9 @@ print("Loading Similarity Provider...")
 from perf_utils import Utils
 
 
-Utils.begin_time("import numpy")
+Utils.tbegin("import numpy")
 import numpy
-Utils.end_time("import numpy")
+Utils.tend("import numpy")
 
 from typing import TypedDict, cast
 
@@ -56,7 +56,8 @@ class SimilarityProvider:
         if not self.torch_loaded:
             print("Loading torch...")
             self.torch_loaded = True
-        import torch
+            import torch
+            self.torch = torch
         
         
         if self.model is None:
@@ -65,7 +66,7 @@ class SimilarityProvider:
         target_vector = self.model.encode(word.strip(), convert_to_tensor=True)
         phrase_vectors = self.model.encode([p.strip() for p in phrases], convert_to_tensor=True)
         
-        similarities = torch.nn.functional.cosine_similarity(target_vector, phrase_vectors).tolist()
+        similarities = self.torch.nn.functional.cosine_similarity(target_vector, phrase_vectors).tolist()
         sorted_similarities = sorted(similarities, reverse=True)
         
         is_confident: bool = max(similarities) > self.confident_threshold

@@ -1,8 +1,10 @@
-MODEL_NAME: str = "Qwen/Qwen3-0.6B"
+from perf_utils import Utils
+
+Utils.tbegin("llmp_load_socketio")
 from flask_socketio import SocketIO
-from openai import OpenAI
+Utils.tend("llmp_load_socketio")
 from api_key import API_KEY, API_KEY_G4F
-from g4f.client import Client
+
 import multiprocessing
 
 
@@ -20,6 +22,8 @@ class LLMProvider:
             return
         print("Created OpenRouter Client")
         
+        from openai import OpenAI
+        
         self.client = OpenAI(
             base_url="https://openrouter.ai/api/v1",
             api_key=API_KEY,
@@ -29,6 +33,8 @@ class LLMProvider:
     @staticmethod
     def worker(queue, messages):
         try:
+            
+            from g4f.client import Client
             
             g4f_client = Client(
                 api_key=API_KEY_G4F,
