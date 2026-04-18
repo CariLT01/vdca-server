@@ -3,3 +3,5 @@ api_key.py
 /api_key.py
 ./database.db
 ./database old.db
+
+database.db
