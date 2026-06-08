@@ -7,6 +7,7 @@ for storing data for automation.
 
 import sqlite3
 import hashlib
+import math
 from contextlib import contextmanager
 
 from question_type import QuestionType
@@ -565,29 +566,54 @@ store question:
             row = cursor.fetchone()
 
         return row[0] if row else ""
-
     def lookup_probability_new_varaint(self) -> float:
+        try:
+            assert self.current_list != -1
 
-        assert self.current_list != -1
+            with self.db_connect() as cursor:
+                # 1. Get all unique target words for this list
+                cursor.execute(
+                    "SELECT DISTINCT target_word FROM questionData WHERE list_id = ?",
+                    (self.current_list,)
+                )
+                unique_words = [row[0] for row in cursor.fetchall()]
 
-        with self.db_connect() as cursor:
-            cursor.execute(
-                "SELECT questionsCount FROM lists WHERE id = ?", (self.current_list,)
-            )
+                if not unique_words:
+                    return 1.0
 
-            questions_count = cursor.fetchone()[0]
+                probabilities = []
 
-            if questions_count <= 0:
-                print(f"question count <= 0, returning 1")
-                return 1
+                # 2. Extract and evaluate the full history array for each word
+                for word in unique_words:
+                    cursor.execute(
+                        "SELECT seen FROM questionData WHERE list_id = ? AND target_word = ?",
+                        (self.current_list, word)
+                    )
+                    # This grabs the exact data array, e.g., [25, 0, 0, 0]
+                    seen_history = [row[0] for row in cursor.fetchall()]
+                    
+                    total_variants = len(seen_history)
+                    if total_variants == 0:
+                        continue
 
-            # select all
-            cursor.execute(
-                "SELECT COUNT(*) FROM questionData WHERE list_id = ? AND seen = 1",
-                (self.current_list,),
-            )
-            n = cursor.fetchone()[0]
+                    # --- THE ALGORITHM ---
+                    # Calculate the exponential novelty decay for each separate variant.
+                    # Never seen (0) -> yields 1.0
+                    # Heavily seen (25) -> yields 0.0000
+                    lambda_factor = 0.15
+                    total_novelty_mass = sum(math.exp(-lambda_factor * seen) for seen in seen_history)
+                    
+                    # The word's overall score is the average novelty of its variants
+                    p = total_novelty_mass / total_variants
+                    
+                    probabilities.append(p)
+                    
+                    # Useful debug print to witness the algorithm working with all data points
+                    print(f"Word: {word:15} | Priority: {p:.4f} | History Pool: {seen_history}")
 
-            p = n / questions_count
-
-        return p
+            # 3. Return the maximum probability found among all words
+            return max(probabilities) if probabilities else 1.0
+            
+        except Exception as e:
+            print(f"Database error occurred ({type(e).__name__}): {e}")
+            return 1.0
