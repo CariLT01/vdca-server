@@ -169,6 +169,12 @@ class App:
             AutomationController.mouse_click()
             return "DONE"
 
+        @self.socketio.on("press")
+        def handle_press(data):
+            if self.killed:
+                return
+            AutomationController.press(data)
+
         @self.socketio.on("locateChoices")
         def handle_locate_choices(data):
             # Take screenshot

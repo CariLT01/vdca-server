@@ -263,6 +263,10 @@ class AutomationController:
         pyautogui.typewrite(text, interval=0.1)
     
     @staticmethod
+    def press(key: str) -> None:
+        pyautogui.press(key)
+    
+    @staticmethod
     def mouse_click() -> None:
         """Click the mouse"""
         pyautogui.click()
