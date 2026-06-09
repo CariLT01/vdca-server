@@ -600,7 +600,7 @@ store question:
                     # Calculate the exponential novelty decay for each separate variant.
                     # Never seen (0) -> yields 1.0
                     # Heavily seen (25) -> yields 0.0000
-                    lambda_factor = 0.15
+                    lambda_factor = 2
                     total_novelty_mass = sum(math.exp(-lambda_factor * seen) for seen in seen_history)
                     
                     # The word's overall score is the average novelty of its variants
